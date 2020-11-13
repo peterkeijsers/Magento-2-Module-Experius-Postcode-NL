@@ -1,98 +1,69 @@
 define([
-    "jquery"
-], function ($) {
+    'jquery',
+    'mage/template',
+    'mage/storage',
+    'mage/url'
+], function ($, template, storage) {
 
     $.widget('experius.postcode', {
+        postcodeValidationRequest: null,
+
         options: {
-            url: '',
-            loaderIconUrl: '',
-            ajax: null,
-            fieldWrapHtml: "" +
-                "<div class='field'>" +
-                "<label class='label'>%label%</label>" +
-                "<div class='control'>" +
-                "%inputHtml%" +
-                "</div>" +
-                "</div> ",
-            addFields: {},
-            hideFields: {},
-            showFields: {}
+            numberOfStreetLines: 1,
+            inputFieldTemplate: 'text!Experius_Postcode/template/widget/fields/input.html',
+            checkboxFieldTemplate: 'text!Experius_Postcode/template/widget/fields/checkbox.html',
+            postcodeFieldSelector: '.field.zip',
+            postcodeInputSelector: '[name="postcode"]',
+            serviceUrl: 'rest/nl/V1/',
+            postcodeApiEndpointUri: 'postcode/information',
+            postcodeApiEndpointUrl: ''
+        },
+
+        _getCreateOptions: function () {
+            return {
+                postcodeApiEndpointUrl: this.options.serviceUrl.concat(this.options.postcodeApiEndpointUri)
+            };
         },
 
         _create: function () {
-            this._initObservers();
+            $(this.options.postcodeInputSelector).on('change', this._validatePostcode.bind(this))
         },
 
-        _initObservers: function () {
-            this._addFields();
-            this._hideFields();
-        },
-
-        _addFields: function () {
-
-            var fieldset = 'test';
-
-            $('div.field.street').before(fieldset);
-        },
-
-        _hideFields: function () {
-            $('div.field.street').hide();
-            $('div.field.city').hide();
-            $('div.field.region').hide();
-        },
-
-        _showFields: function () {
-
-        },
-
-        _save: function (observerData) {
-
-            var self = this;
-
-            this._loader(observerData.reload, 'show');
-
-            var data = {};
-
-            if (this.ajax) {
-                this.ajax.abort();
-            }
-
-            this.ajax = $.ajax({
-                type: "POST",
-                url: this.options.url,
-                data: data,
-                success: function (response) {
-                    console.log(response);
-
-                    if (observerData.reload !== undefined) {
-                        self._updateContent(response.content);
-                    }
-
-                    if (observerData.redirect !== undefined) {
-                        window.location.href = observerData.redirect;
-                    }
-
-                    self._loader(observerData.reload, 'hide');
-                },
+        _validatePostcode: function (event) {
+            this.postcodeValidationRequest = $.Deferred();
+            this._getPostcodeInformation(this.postcodeValidationRequest, '3523 TK', '147');
+            
+            $.when(this.postcodeValidationRequest).done(function (data) {
+                console.log(data);
             });
-
         },
 
-        _updateContent: function (content) {
+        _getPostcodeInformation: function (deferred, postcode, housenumber) {
+            var payload;
 
-        },
+            payload = {
+                postcode: postcode,
+                houseNumber: housenumber,
+                houseNumberAddition: ''
+            };
 
-        _loader: function (selectors, action) {
-            var loaderClassName = 'experius-postcode-loader';
-            $.each(selectors, function (index, selector) {
-                var element = $('#' + selector);
-                if (action == 'show') {
-                    element.append('<div class="' + loaderClassName + '">reloading</div>');
-                } else {
-                    element.find('.' + loaderClassName).remove();
+            return storage.post(
+                this.options.postcodeApiEndpointUrl,
+                JSON.stringify(payload)
+            ).done(
+                function (postcodeInformation) {
+                    if (postcodeInformation) {
+                        deferred.resolve(postcodeInformation);
+                    } else {
+                        deferred.reject();
+                    }
                 }
-            });
-        },
+            ).fail(
+                function () {
+                    deferred.reject();
+                }
+            );
+        }
 
     });
 
